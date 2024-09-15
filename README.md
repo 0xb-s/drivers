@@ -10,4 +10,4 @@ This library is an **asynchronous**, **no_std** embedded Rust library designed t
 - **Asynchronous Operations:** Non-blocking drivers.
 - **No_std Compatible:** Designed for embedded systems without a standard library.
 - **Multiple Hardware Support:** Drivers for WS2812, APA102, SK6812 RGBW, and LPD8806 LEDs.
-- - **Configurable Color Order:** Supports different color orders (RGB, GRB) to match your LED hardware.
+ - **Configurable Color Order:** Supports different color orders (RGB, GRB) to match your LED hardware.
