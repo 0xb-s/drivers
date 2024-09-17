@@ -1,13 +1,15 @@
-# Async Embedded Rust LED Driver Library for Addressable LEDs
+# Rust LED Driver Crate
 
-
-## Overview
-
-This library is an **asynchronous**, **no_std** embedded Rust library designed to control various types of addressable LED strips. It provides non-blocking drivers for popular LED hardware.
+This crate provides drivers for popular addressable LED strips, including **WS2812**, **APA102**, **LPD8806**, and **SK6812**. It offers a unified interface to control an arbitrary number of LEDs using the `embedded-hal-async` SPI bus.
 
 ## Features
 
-- **Asynchronous Operations:** Non-blocking drivers.
-- **No_std Compatible:** Designed for embedded systems without a standard library.
-- **Multiple Hardware Support:** Drivers for WS2812, APA102, SK6812 RGBW, and LPD8806 LEDs.
- - **Configurable Color Order:** Supports different color orders (RGB, GRB) to match your LED hardware.
+*Multiple LED Protocols*: Supports WS2812, APA102, LPD8806, and SK6812.
+
+*Async SPI Communication*: Utilizes the `embedded-hal-async` crate for LED data transmission.
+
+*Customizable Color Ordering*: Supports dynamic color ordering (RGB, GRB).
+
+*Buffer Management*: Automatically calculates the necessary buffer size for LED data and reset signals.
+
+*Easy Integration*: Simple API to write RGB/RGBW data to the LED strip.
