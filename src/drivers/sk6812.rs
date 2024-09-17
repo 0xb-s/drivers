@@ -1,28 +1,28 @@
+use embedded_hal_async::spi::SpiBus;
+use smart_leds::RGB8;
+
 use crate::color_order::ColorOrder;
 use crate::drivers::LedDriver;
-use crate::encoding::encode_rgbw8_to_spi_data;
-use crate::encoding::RGBW8;
-use embedded_hal_async::spi::SpiBus;
+use crate::encoding::encode_rgb8_to_spi_data;
 
-/// SK6812 LED Driver supporting an arbitrary number of LEDs.
+/// WS2812 LED Driver supporting an arbitrary number of LEDs.
 ///
 /// The caller is responsible for providing a buffer of appropriate size.
 
-pub struct Sk6812<'a, SPI: SpiBus<u8>> {
+pub struct Ws2812<'a, SPI: SpiBus<u8>> {
     spi: SPI,
     color_order: ColorOrder,
     num_leds: usize,
     buffer: &'a mut [u8],
 }
 
-impl<'a, SPI: SpiBus<u8>> Sk6812<'a, SPI> {
-    /// Creates a new SK6812 driver with the given SPI bus, number of LEDs, and buffer.
-    ///
+impl<'a, SPI: SpiBus<u8>> Ws2812<'a, SPI> {
+    /// Creates a new WS2812 driver with the given SPI bus, number of LEDs, and buffer.
 
     /// Panics if the provided buffer is too small.
     pub fn new(spi: SPI, num_leds: usize, buffer: &'a mut [u8]) -> Self {
-        let data_size = num_leds * 16; 
-        let reset_size = 140; 
+        let data_size = num_leds * 12;
+        let reset_size = 140;
         let total_size = data_size + reset_size;
 
         assert!(
@@ -46,17 +46,17 @@ impl<'a, SPI: SpiBus<u8>> Sk6812<'a, SPI> {
     }
 }
 
-impl<'a, SPI: SpiBus<u8>> LedDriver<RGBW8> for Sk6812<'a, SPI> {
+impl<'a, SPI: SpiBus<u8>> LedDriver<RGB8> for Ws2812<'a, SPI> {
     type Error = SPI::Error;
 
-    async fn write(&mut self, colors: &[RGBW8]) -> Result<(), Self::Error> {
+    async fn write(&mut self, colors: &[RGB8]) -> Result<(), Self::Error> {
         let num_leds = core::cmp::min(colors.len(), self.num_leds);
-        let data_size = num_leds * 16;
+        let data_size = num_leds * 12;
         let reset_size = 140;
         let total_size = data_size + reset_size;
 
         // Encode colors into the buffer
-        encode_rgbw8_to_spi_data(
+        encode_rgb8_to_spi_data(
             &colors[..num_leds],
             self.color_order,
             &mut self.buffer[..data_size],
