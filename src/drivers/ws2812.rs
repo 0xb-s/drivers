@@ -4,23 +4,40 @@ use smart_leds::RGB8;
 use crate::color_order::ColorOrder;
 use crate::drivers::LedDriver;
 use crate::encoding::encode_rgb8_to_spi_data;
-const MAX_LEDS: usize = 60;
-pub struct Ws2812<SPI: SpiBus<u8>> {
+
+/// WS2812 LED Driver supporting an arbitrary number of LEDs.
+///
+/// The caller is responsible for providing a buffer of appropriate size.
+
+pub struct Ws2812<'a, SPI: SpiBus<u8>> {
     spi: SPI,
     color_order: ColorOrder,
-    buffer: [u8; MAX_BUFFER_SIZE],
+    num_leds: usize,
+    buffer: &'a mut [u8],
 }
 
-const MAX_BUFFER_SIZE: usize = MAX_LEDS * 12; // Each LED requires 12 bytes
+impl<'a, SPI: SpiBus<u8>> Ws2812<'a, SPI> {
+    /// Creates a new WS2812 driver with the given SPI bus, number of LEDs, and buffer.
+    ///
 
-impl<SPI: SpiBus<u8>> Ws2812<SPI> {
-    /// Creates a new WS2812 driver with the given SPI bus.
-    /// Colors default to RGB order.
-    pub fn new(spi: SPI) -> Self {
+    /// Panics if the provided buffer is too small.
+    pub fn new(spi: SPI, num_leds: usize, buffer: &'a mut [u8]) -> Self {
+        let data_size = num_leds * 12;
+        let reset_size = 140;
+        let total_size = data_size + reset_size;
+
+        assert!(
+            buffer.len() >= total_size,
+            "Buffer too small: required {}, provided {}",
+            total_size,
+            buffer.len()
+        );
+
         Self {
             spi,
             color_order: ColorOrder::RGB,
-            buffer: [0; MAX_BUFFER_SIZE],
+            num_leds,
+            buffer,
         }
     }
 
@@ -30,12 +47,14 @@ impl<SPI: SpiBus<u8>> Ws2812<SPI> {
     }
 }
 
-impl<SPI: SpiBus<u8>> LedDriver<RGB8> for Ws2812<SPI> {
+impl<'a, SPI: SpiBus<u8>> LedDriver<RGB8> for Ws2812<'a, SPI> {
     type Error = SPI::Error;
 
     async fn write(&mut self, colors: &[RGB8]) -> Result<(), Self::Error> {
-        let num_leds = core::cmp::min(colors.len(), MAX_LEDS);
+        let num_leds = core::cmp::min(colors.len(), self.num_leds);
         let data_size = num_leds * 12;
+        let reset_size = 140;
+        let total_size = data_size + reset_size;
 
         // Encode colors into the buffer
         encode_rgb8_to_spi_data(
@@ -44,11 +63,13 @@ impl<SPI: SpiBus<u8>> LedDriver<RGB8> for Ws2812<SPI> {
             &mut self.buffer[..data_size],
         );
 
-        // Write the data to SPI
+        // Write the color data to SPI
         self.spi.write(&self.buffer[..data_size]).await?;
 
-        // Write reset signal.
-        let reset_signal = [0_u8; 140];
-        self.spi.write(&reset_signal).await
+        // Write reset signal
+        let reset_signal = &mut self.buffer[data_size..total_size];
+        // Ensure the reset_signal is zeroed
+        reset_signal.fill(0x00);
+        self.spi.write(reset_signal).await
     }
 }
