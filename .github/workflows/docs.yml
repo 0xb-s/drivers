@@ -33,7 +33,7 @@ jobs:
         run: cargo doc --no-deps
 
       - name: Archive documentation
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: documentation
           path: target/doc
