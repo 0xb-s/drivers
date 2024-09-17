@@ -2,54 +2,71 @@ use crate::drivers::LedDriver;
 use embedded_hal_async::spi::SpiBus;
 use smart_leds::RGB8;
 
-pub struct Lpd8806<SPI: SpiBus<u8>> {
+/// LPD8806 LED Driver supporting an arbitrary number of LEDs.
+///
+/// The caller is responsible for providing a buffer of appropriate size.
+
+pub struct Lpd8806<'a, SPI: SpiBus<u8>> {
     spi: SPI,
-    buffer: [u8; MAX_BUFFER_SIZE],
+    num_leds: usize,
+    buffer: &'a mut [u8],
 }
 
-const MAX_LEDS: usize = 60; // Adjust as needed
-const START_FRAME_SIZE: usize = 4;
-const LED_FRAME_SIZE: usize = 3;
-const END_FRAME_SIZE: usize = (MAX_LEDS + 31) / 32;
-const MAX_BUFFER_SIZE: usize = START_FRAME_SIZE + (MAX_LEDS * LED_FRAME_SIZE) + END_FRAME_SIZE;
+impl<'a, SPI: SpiBus<u8>> Lpd8806<'a, SPI> {
+    /// Creates a new LPD8806 driver with the given SPI bus, number of LEDs, and buffer.
 
-impl<SPI: SpiBus<u8>> Lpd8806<SPI> {
-    /// Creates a new LPD8806 driver with the given SPI bus.
-    pub fn new(spi: SPI) -> Self {
+    /// Panics if the provided buffer is too small.
+    pub fn new(spi: SPI, num_leds: usize, buffer: &'a mut [u8]) -> Self {
+        let start_frame_size = 4;
+        let led_frame_size = 3;
+        let end_frame_size = (num_leds + 31) / 32;
+        let total_size = start_frame_size + (num_leds * led_frame_size) + end_frame_size;
+
+        assert!(
+            buffer.len() >= total_size,
+            "Buffer too small: required {}, provided {}",
+            total_size,
+            buffer.len()
+        );
+
         Self {
             spi,
-            buffer: [0; MAX_BUFFER_SIZE],
+            num_leds,
+            buffer,
         }
     }
 }
 
-impl<SPI: SpiBus<u8>> LedDriver<RGB8> for Lpd8806<SPI> {
+impl<'a, SPI: SpiBus<u8>> LedDriver<RGB8> for Lpd8806<'a, SPI> {
     type Error = SPI::Error;
 
     async fn write(&mut self, colors: &[RGB8]) -> Result<(), Self::Error> {
-        let num_leds = core::cmp::min(colors.len(), MAX_LEDS);
+        let num_leds = core::cmp::min(colors.len(), self.num_leds);
+        let end_frame_size = (num_leds + 31) / 32;
 
-        // Prepare the buffer.
-        let buffer = &mut self.buffer[..];
+        // Frame sizes
+        let start_frame_size = 4;
+        let led_frame_size = 3;
+        let total_size = start_frame_size + (num_leds * led_frame_size) + end_frame_size;
 
-        // Start frame
-        buffer[..START_FRAME_SIZE].fill(0x00);
+        // Start frame: all zeros
+        self.buffer[..start_frame_size].fill(0x00);
 
         // LED frames
         for (i, &RGB8 { r, g, b }) in colors.iter().enumerate().take(num_leds) {
-            let offset = START_FRAME_SIZE + i * LED_FRAME_SIZE;
-            // Each color is 7 bits with the highest bit set to 1
-            buffer[offset] = (g >> 1) | 0x80;
-            buffer[offset + 1] = (r >> 1) | 0x80;
-            buffer[offset + 2] = (b >> 1) | 0x80;
+            let offset = start_frame_size + i * led_frame_size;
+            // Each color component is 7 bits with the highest bit set to 1
+            // This is specific to LPD8806 protocol
+            self.buffer[offset] = (g >> 1) | 0x80;
+            self.buffer[offset + 1] = (r >> 1) | 0x80;
+            self.buffer[offset + 2] = (b >> 1) | 0x80;
         }
 
-        // End frame
-        let end_frame_offset = START_FRAME_SIZE + num_leds * LED_FRAME_SIZE;
-        buffer[end_frame_offset..end_frame_offset + END_FRAME_SIZE].fill(0x00);
+        // End frame: all zeros
+        let end_frame_offset = start_frame_size + num_leds * led_frame_size;
+        self.buffer[end_frame_offset..end_frame_offset + end_frame_size].fill(0x00);
 
-        // Write the data
-        let total_size = START_FRAME_SIZE + num_leds * LED_FRAME_SIZE + END_FRAME_SIZE;
-        self.spi.write(&buffer[..total_size]).await
+        // Write the data via SPI
+        self.spi.write(&self.buffer[..total_size]).await
     }
 }
